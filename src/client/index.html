@@ -1,0 +1,1601 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="HomePlus - Multi-user chat application powered by OpenClaw">
+  <title>HomePlus</title>
+  
+  <style>
+    /* ========================================================================
+       CSS Variables & Theme
+       ======================================================================== */
+    :root {
+      /* Colors - Dark Theme (OpenClaw style) */
+      --color-bg-primary: #0f0f14;
+      --color-bg-secondary: #1a1a24;
+      --color-bg-tertiary: #24243a;
+      --color-bg-input: #1e1e2e;
+      --color-bg-hover: #2a2a40;
+      --color-bg-active: #323250;
+      
+      --color-text-primary: #e8e8ed;
+      --color-text-secondary: #a0a0b0;
+      --color-text-muted: #6a6a7a;
+      --color-text-inverse: #0f0f14;
+      
+      --color-accent: #6c5ce7;
+      --color-accent-hover: #7d6ff0;
+      --color-accent-muted: rgba(108, 92, 231, 0.2);
+      
+      --color-success: #00b894;
+      --color-warning: #fdcb6e;
+      --color-error: #e74c3c;
+      
+      --color-border: #2a2a40;
+      --color-border-light: #3a3a55;
+      
+      --color-user-message: #6c5ce7;
+      --color-bot-message: #2a2a40;
+      
+      /* Typography */
+      --font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 
+                     'Helvetica Neue', Arial, sans-serif;
+      --font-mono: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', monospace;
+      
+      --font-size-xs: 0.75rem;
+      --font-size-sm: 0.875rem;
+      --font-size-base: 1rem;
+      --font-size-lg: 1.125rem;
+      --font-size-xl: 1.25rem;
+      --font-size-2xl: 1.5rem;
+      
+      /* Spacing */
+      --spacing-xs: 0.25rem;
+      --spacing-sm: 0.5rem;
+      --spacing-md: 1rem;
+      --spacing-lg: 1.5rem;
+      --spacing-xl: 2rem;
+      
+      /* Border Radius */
+      --radius-sm: 4px;
+      --radius-md: 8px;
+      --radius-lg: 12px;
+      --radius-xl: 16px;
+      --radius-full: 9999px;
+      
+      /* Shadows */
+      --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+      --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.4);
+      --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.5);
+      
+      /* Transitions */
+      --transition-fast: 150ms ease;
+      --transition-base: 250ms ease;
+      --transition-slow: 350ms ease;
+      
+      /* Layout */
+      --sidebar-width: 280px;
+      --header-height: 60px;
+      --input-height: 60px;
+    }
+
+    /* ========================================================================
+       Reset & Base Styles
+       ======================================================================== */
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html {
+      font-size: 16px;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    body {
+      font-family: var(--font-family);
+      font-size: var(--font-size-base);
+      line-height: 1.5;
+      color: var(--color-text-primary);
+      background-color: var(--color-bg-primary);
+      min-height: 100vh;
+      overflow: hidden;
+    }
+
+    /* ========================================================================
+       Layout
+       ======================================================================== */
+    .app-container {
+      display: flex;
+      height: 100vh;
+      width: 100vw;
+      overflow: hidden;
+    }
+
+    /* Main chat area */
+    .main-content {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      background: var(--color-bg-primary);
+    }
+
+    /* Right sidebar */
+    .sidebar {
+      width: var(--sidebar-width);
+      background: var(--color-bg-secondary);
+      border-left: 1px solid var(--color-border);
+      display: flex;
+      flex-direction: column;
+      transition: transform var(--transition-base);
+    }
+
+    .sidebar.collapsed {
+      transform: translateX(100%);
+    }
+
+    /* ========================================================================
+       Header
+       ======================================================================== */
+    .header {
+      height: var(--header-height);
+      background: var(--color-bg-secondary);
+      border-bottom: 1px solid var(--color-border);
+      display: flex;
+      align-items: center;
+      padding: 0 var(--spacing-lg);
+      gap: var(--spacing-md);
+      flex-shrink: 0;
+    }
+
+    .header-title {
+      font-size: var(--font-size-xl);
+      font-weight: 600;
+      color: var(--color-text-primary);
+      display: flex;
+      align-items: center;
+      gap: var(--spacing-sm);
+    }
+
+    .header-title-icon {
+      font-size: 1.5rem;
+    }
+
+    .header-status {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: var(--spacing-sm);
+      font-size: var(--font-size-sm);
+      color: var(--color-text-secondary);
+    }
+
+    .status-indicator {
+      width: 8px;
+      height: 8px;
+      border-radius: var(--radius-full);
+      background: var(--color-text-muted);
+      transition: background var(--transition-fast);
+    }
+
+    .status-indicator.connected {
+      background: var(--color-success);
+      box-shadow: 0 0 8px var(--color-success);
+    }
+
+    .status-indicator.connecting {
+      background: var(--color-warning);
+      animation: pulse 1.5s infinite;
+    }
+
+    .status-indicator.error {
+      background: var(--color-error);
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+
+    /* ========================================================================
+       Chat Messages Area
+       ======================================================================== */
+    .messages-container {
+      flex: 1;
+      overflow-y: auto;
+      padding: var(--spacing-lg);
+      display: flex;
+      flex-direction: column;
+      gap: var(--spacing-md);
+    }
+
+    .messages-container::-webkit-scrollbar {
+      width: 8px;
+    }
+
+    .messages-container::-webkit-scrollbar-track {
+      background: var(--color-bg-primary);
+    }
+
+    .messages-container::-webkit-scrollbar-thumb {
+      background: var(--color-bg-tertiary);
+      border-radius: var(--radius-full);
+    }
+
+    .messages-container::-webkit-scrollbar-thumb:hover {
+      background: var(--color-bg-hover);
+    }
+
+    /* Welcome message */
+    .welcome-message {
+      text-align: center;
+      padding: var(--spacing-xl) var(--spacing-lg);
+      color: var(--color-text-secondary);
+    }
+
+    .welcome-message h2 {
+      font-size: var(--font-size-2xl);
+      margin-bottom: var(--spacing-sm);
+      color: var(--color-text-primary);
+    }
+
+    .welcome-message p {
+      margin-bottom: var(--spacing-lg);
+    }
+
+    /* Message styles */
+    .message {
+      display: flex;
+      gap: var(--spacing-sm);
+      max-width: 80%;
+      animation: messageIn 0.2s ease;
+    }
+
+    @keyframes messageIn {
+      from {
+        opacity: 0;
+        transform: translateY(10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .message.user {
+      align-self: flex-end;
+      flex-direction: row-reverse;
+    }
+
+    .message.bot {
+      align-self: flex-start;
+    }
+
+    .message-avatar {
+      width: 36px;
+      height: 36px;
+      border-radius: var(--radius-full);
+      background: var(--color-bg-tertiary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: var(--font-size-lg);
+      flex-shrink: 0;
+    }
+
+    .message.user .message-avatar {
+      background: var(--color-accent);
+      color: white;
+    }
+
+    .message.bot .message-avatar {
+      background: var(--color-bg-hover);
+    }
+
+    .message-content {
+      display: flex;
+      flex-direction: column;
+      gap: var(--spacing-xs);
+    }
+
+    .message-bubble {
+      padding: var(--spacing-sm) var(--spacing-md);
+      border-radius: var(--radius-lg);
+      line-height: 1.4;
+      word-wrap: break-word;
+    }
+
+    .message.user .message-bubble {
+      background: var(--color-user-message);
+      color: white;
+      border-bottom-right-radius: var(--radius-sm);
+    }
+
+    .message.bot .message-bubble {
+      background: var(--color-bot-message);
+      color: var(--color-text-primary);
+      border-bottom-left-radius: var(--radius-sm);
+    }
+
+    .message-pending .message-bubble {
+      opacity: 0.6;
+    }
+
+    .message-time {
+      font-size: var(--font-size-xs);
+      color: var(--color-text-muted);
+    }
+
+    .message.user .message-time {
+      text-align: right;
+    }
+
+    /* System messages */
+    .system-message {
+      text-align: center;
+      padding: var(--spacing-sm) var(--spacing-md);
+      font-size: var(--font-size-sm);
+      color: var(--color-text-muted);
+    }
+
+    /* Typing indicator */
+    .typing-indicator {
+      display: flex;
+      gap: var(--spacing-xs);
+      padding: var(--spacing-sm);
+    }
+
+    .typing-indicator span {
+      width: 8px;
+      height: 8px;
+      border-radius: var(--radius-full);
+      background: var(--color-text-muted);
+      animation: typingBounce 1.4s infinite ease-in-out;
+    }
+
+    .typing-indicator span:nth-child(1) { animation-delay: 0s; }
+    .typing-indicator span:nth-child(2) { animation-delay: 0.2s; }
+    .typing-indicator span:nth-child(3) { animation-delay: 0.4s; }
+
+    @keyframes typingBounce {
+      0%, 60%, 100% { transform: translateY(0); }
+      30% { transform: translateY(-4px); }
+    }
+
+    /* ========================================================================
+       Input Area
+       ======================================================================== */
+    .input-area {
+      height: var(--input-height);
+      background: var(--color-bg-secondary);
+      border-top: 1px solid var(--color-border);
+      padding: var(--spacing-md) var(--spacing-lg);
+      display: flex;
+      gap: var(--spacing-md);
+      align-items: center;
+      flex-shrink: 0;
+    }
+
+    .message-input {
+      flex: 1;
+      background: var(--color-bg-input);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-lg);
+      padding: var(--spacing-sm) var(--spacing-md);
+      font-family: inherit;
+      font-size: var(--font-size-base);
+      color: var(--color-text-primary);
+      resize: none;
+      outline: none;
+      transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+    }
+
+    .message-input:focus {
+      border-color: var(--color-accent);
+      box-shadow: 0 0 0 2px var(--color-accent-muted);
+    }
+
+    .message-input::placeholder {
+      color: var(--color-text-muted);
+    }
+
+    .send-button {
+      background: var(--color-accent);
+      color: white;
+      border: none;
+      border-radius: var(--radius-lg);
+      padding: var(--spacing-sm) var(--spacing-lg);
+      font-family: inherit;
+      font-size: var(--font-size-base);
+      font-weight: 500;
+      cursor: pointer;
+      transition: background var(--transition-fast), transform var(--transition-fast);
+      display: flex;
+      align-items: center;
+      gap: var(--spacing-sm);
+    }
+
+    .send-button:hover:not(:disabled) {
+      background: var(--color-accent-hover);
+    }
+
+    .send-button:active:not(:disabled) {
+      transform: scale(0.98);
+    }
+
+    .send-button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    /* ========================================================================
+       Sidebar Content
+       ======================================================================== */
+    .sidebar-header {
+      padding: var(--spacing-lg);
+      border-bottom: 1px solid var(--color-border);
+    }
+
+    .sidebar-title {
+      font-size: var(--font-size-lg);
+      font-weight: 600;
+      margin-bottom: var(--spacing-md);
+    }
+
+    .user-profile {
+      display: flex;
+      align-items: center;
+      gap: var(--spacing-md);
+    }
+
+    .user-avatar {
+      width: 48px;
+      height: 48px;
+      border-radius: var(--radius-full);
+      background: var(--color-accent);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: var(--font-size-xl);
+      color: white;
+    }
+
+    .user-info h3 {
+      font-size: var(--font-size-base);
+      font-weight: 600;
+      margin-bottom: var(--spacing-xs);
+    }
+
+    .user-info p {
+      font-size: var(--font-size-sm);
+      color: var(--color-text-secondary);
+      display: flex;
+      align-items: center;
+      gap: var(--spacing-xs);
+    }
+
+    .sidebar-section {
+      padding: var(--spacing-lg);
+      border-bottom: 1px solid var(--color-border);
+    }
+
+    .sidebar-section h4 {
+      font-size: var(--font-size-sm);
+      color: var(--color-text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: var(--spacing-md);
+    }
+
+    .sidebar-menu {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: var(--spacing-sm);
+    }
+
+    .sidebar-menu button {
+      width: 100%;
+      background: transparent;
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-md);
+      padding: var(--spacing-sm) var(--spacing-md);
+      font-family: inherit;
+      font-size: var(--font-size-sm);
+      color: var(--color-text-primary);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: var(--spacing-sm);
+      transition: background var(--transition-fast), border-color var(--transition-fast);
+    }
+
+    .sidebar-menu button:hover {
+      background: var(--color-bg-hover);
+      border-color: var(--color-border-light);
+    }
+
+    .sidebar-menu button.danger {
+      color: var(--color-error);
+      border-color: rgba(231, 76, 60, 0.3);
+    }
+
+    .sidebar-menu button.danger:hover {
+      background: rgba(231, 76, 60, 0.1);
+      border-color: var(--color-error);
+    }
+
+    /* ========================================================================
+       Auth Forms (Login/Register)
+       ======================================================================== */
+    .auth-container {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: var(--spacing-lg);
+    }
+
+    .auth-card {
+      background: var(--color-bg-secondary);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-xl);
+      padding: var(--spacing-xl);
+      width: 100%;
+      max-width: 400px;
+      box-shadow: var(--shadow-lg);
+    }
+
+    .auth-header {
+      text-align: center;
+      margin-bottom: var(--spacing-xl);
+    }
+
+    .auth-header h1 {
+      font-size: var(--font-size-2xl);
+      margin-bottom: var(--spacing-sm);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: var(--spacing-sm);
+    }
+
+    .auth-header p {
+      color: var(--color-text-secondary);
+    }
+
+    .auth-form {
+      display: flex;
+      flex-direction: column;
+      gap: var(--spacing-md);
+    }
+
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: var(--spacing-xs);
+    }
+
+    .form-group label {
+      font-size: var(--font-size-sm);
+      font-weight: 500;
+      color: var(--color-text-secondary);
+    }
+
+    .form-group input {
+      background: var(--color-bg-input);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-md);
+      padding: var(--spacing-sm) var(--spacing-md);
+      font-family: inherit;
+      font-size: var(--font-size-base);
+      color: var(--color-text-primary);
+      outline: none;
+      transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+    }
+
+    .form-group input:focus {
+      border-color: var(--color-accent);
+      box-shadow: 0 0 0 2px var(--color-accent-muted);
+    }
+
+    .form-group input::placeholder {
+      color: var(--color-text-muted);
+    }
+
+    .auth-button {
+      background: var(--color-accent);
+      color: white;
+      border: none;
+      border-radius: var(--radius-md);
+      padding: var(--spacing-md);
+      font-family: inherit;
+      font-size: var(--font-size-base);
+      font-weight: 600;
+      cursor: pointer;
+      transition: background var(--transition-fast), transform var(--transition-fast);
+      margin-top: var(--spacing-sm);
+    }
+
+    .auth-button:hover:not(:disabled) {
+      background: var(--color-accent-hover);
+    }
+
+    .auth-button:active:not(:disabled) {
+      transform: scale(0.98);
+    }
+
+    .auth-button:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    .auth-error {
+      background: rgba(231, 76, 60, 0.1);
+      border: 1px solid rgba(231, 76, 60, 0.3);
+      border-radius: var(--radius-md);
+      padding: var(--spacing-sm) var(--spacing-md);
+      color: var(--color-error);
+      font-size: var(--font-size-sm);
+      text-align: center;
+    }
+
+    .auth-footer {
+      text-align: center;
+      margin-top: var(--spacing-lg);
+      padding-top: var(--spacing-lg);
+      border-top: 1px solid var(--color-border);
+      font-size: var(--font-size-sm);
+      color: var(--color-text-secondary);
+    }
+
+    .auth-footer button {
+      background: none;
+      border: none;
+      color: var(--color-accent);
+      font-family: inherit;
+      font-size: inherit;
+      cursor: pointer;
+      text-decoration: underline;
+    }
+
+    .auth-footer button:hover {
+      color: var(--color-accent-hover);
+    }
+
+    /* ========================================================================
+       Loading & States
+       ======================================================================== */
+    .loading-spinner {
+      display: inline-block;
+      width: 20px;
+      height: 20px;
+      border: 2px solid var(--color-bg-hover);
+      border-top-color: var(--color-accent);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    /* ========================================================================
+       Responsive Design
+       ======================================================================== */
+    @media (max-width: 768px) {
+      .sidebar {
+        position: fixed;
+        right: 0;
+        top: 0;
+        bottom: 0;
+        z-index: 100;
+        transform: translateX(100%);
+      }
+
+      .sidebar:not(.collapsed) {
+        transform: translateX(0);
+      }
+
+      .message {
+        max-width: 90%;
+      }
+
+      .header {
+        padding: 0 var(--spacing-md);
+      }
+    }
+
+    /* ========================================================================
+       Scrollbar for messages
+       ======================================================================== */
+    .message-content pre {
+      background: var(--color-bg-primary);
+      padding: var(--spacing-sm);
+      border-radius: var(--radius-sm);
+      overflow-x: auto;
+      font-family: var(--font-mono);
+      font-size: var(--font-size-sm);
+      margin-top: var(--spacing-sm);
+    }
+
+    .message-content code {
+      background: var(--color-bg-primary);
+      padding: 2px 6px;
+      border-radius: var(--radius-sm);
+      font-family: var(--font-mono);
+      font-size: 0.9em;
+    }
+
+    .message-content pre code {
+      padding: 0;
+      background: transparent;
+    }
+  </style>
+</head>
+<body>
+  <!-- Auth Screen (Login/Register) -->
+  <div id="auth-screen" class="auth-container">
+    <div class="auth-card">
+      <div class="auth-header">
+        <h1>🏠 HomePlus</h1>
+        <p>Chat with AI, powered by OpenClaw</p>
+      </div>
+      
+      <!-- Login Form -->
+      <form id="login-form" class="auth-form">
+        <div id="login-error" class="auth-error hidden"></div>
+        
+        <div class="form-group">
+          <label for="login-username">Username</label>
+          <input type="text" id="login-username" placeholder="Enter your username" 
+                 required autocomplete="username" maxlength="32">
+        </div>
+        
+        <div class="form-group">
+          <label for="login-password">Password</label>
+          <input type="password" id="login-password" placeholder="Enter your password" 
+                 required autocomplete="current-password" minlength="6">
+        </div>
+        
+        <button type="submit" class="auth-button" id="login-button">
+          Sign In
+        </button>
+      </form>
+      
+      <!-- Register Form -->
+      <form id="register-form" class="auth-form hidden">
+        <div id="register-error" class="auth-error hidden"></div>
+        
+        <div class="form-group">
+          <label for="register-username">Username</label>
+          <input type="text" id="register-username" placeholder="Choose a username" 
+                 required autocomplete="username" maxlength="32" pattern="[a-zA-Z0-9_-]+">
+        </div>
+        
+        <div class="form-group">
+          <label for="register-password">Password</label>
+          <input type="password" id="register-password" placeholder="Choose a password (min 6 chars)" 
+                 required autocomplete="new-password" minlength="6">
+        </div>
+        
+        <div class="form-group">
+          <label for="register-confirm">Confirm Password</label>
+          <input type="password" id="register-confirm" placeholder="Confirm your password" 
+                 required autocomplete="new-password" minlength="6">
+        </div>
+        
+        <button type="submit" class="auth-button" id="register-button">
+          Create Account
+        </button>
+      </form>
+      
+      <div class="auth-footer">
+        <span id="auth-toggle-text">Don't have an account?</span>
+        <button type="button" id="auth-toggle-button">Sign Up</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main Chat Application -->
+  <div id="chat-screen" class="app-container hidden">
+    <!-- Main Content Area -->
+    <div class="main-content">
+      <!-- Header -->
+      <header class="header">
+        <div class="header-title">
+          <span class="header-title-icon">🏠</span>
+          <span>HomePlus</span>
+        </div>
+        <div class="header-status">
+          <span id="connection-status" class="status-indicator connecting"></span>
+          <span id="connection-text">Connecting...</span>
+        </div>
+      </header>
+
+      <!-- Messages Container -->
+      <div id="messages" class="messages-container">
+        <div class="welcome-message">
+          <h2>Welcome to HomePlus! 👋</h2>
+          <p>Start a conversation with the AI assistant.</p>
+          <p style="font-size: 0.875rem; color: var(--color-text-muted);">
+            Your chat history is stored securely via OpenClaw.
+          </p>
+        </div>
+      </div>
+
+      <!-- Input Area -->
+      <div class="input-area">
+        <input type="text" id="message-input" class="message-input" 
+               placeholder="Type a message..." autocomplete="off" maxlength="5000">
+        <button id="send-button" class="send-button" disabled>
+          <span>Send</span>
+          <span>→</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Sidebar -->
+    <aside id="sidebar" class="sidebar">
+      <div class="sidebar-header">
+        <h3 class="sidebar-title">Account</h3>
+        <div class="user-profile">
+          <div id="user-avatar" class="user-avatar">?</div>
+          <div class="user-info">
+            <h3 id="user-name">Username</h3>
+            <p>
+              <span id="user-status" class="status-indicator connected"></span>
+              <span>Online</span>
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div class="sidebar-section">
+        <h4>Session</h4>
+        <ul class="sidebar-menu">
+          <li>
+            <button id="new-chat-button">
+              <span>✨</span> New Chat
+            </button>
+          </li>
+          <li>
+            <button id="clear-history-button">
+              <span>🗑️</span> Clear History
+            </button>
+          </li>
+        </ul>
+      </div>
+
+      <div class="sidebar-section">
+        <h4>Connection</h4>
+        <ul class="sidebar-menu">
+          <li>
+            <button id="connection-info-button">
+              <span>📡</span> <span id="gateway-status">Checking...</span>
+            </button>
+          </li>
+        </ul>
+      </div>
+
+      <div class="sidebar-section" style="margin-top: auto;">
+        <ul class="sidebar-menu">
+          <li>
+            <button id="logout-button" class="danger">
+              <span>🚪</span> Sign Out
+            </button>
+          </li>
+        </ul>
+      </div>
+    </aside>
+  </div>
+
+  <script>
+    /**
+     * HomePlus Client Application
+     * 
+     * Handles WebSocket communication, UI updates, and user interactions.
+     * Connects to HomePlus server and relays messages to OpenClaw Gateway.
+     */
+
+    // =====================================================================
+    // Configuration
+    // =====================================================================
+
+    /** @type {string} WebSocket server URL */
+    const WS_URL = `ws://${window.location.hostname}:18791`;
+    
+    /** @type {Object} Application state */
+    const state = {
+      ws: null,                    // WebSocket connection
+      authenticated: false,        // User authentication status
+      username: null,              // Current username
+      sessionKey: null,            // OpenClaw session key
+      reconnectAttempts: 0,        // Reconnection attempt counter
+      maxReconnectAttempts: 10,    // Maximum reconnection attempts
+      reconnectDelay: 1000,        // Base reconnection delay (ms)
+      pingInterval: null,          // Ping interval timer
+      lastPong: null,              // Last pong received timestamp
+      connectionStatus: 'disconnected'  // Current connection status
+    };
+
+    // =====================================================================
+    // DOM Elements
+    // =====================================================================
+
+    const elements = {
+      // Auth screen
+      authScreen: document.getElementById('auth-screen'),
+      chatScreen: document.getElementById('chat-screen'),
+      loginForm: document.getElementById('login-form'),
+      registerForm: document.getElementById('register-form'),
+      loginError: document.getElementById('login-error'),
+      registerError: document.getElementById('register-error'),
+      loginUsername: document.getElementById('login-username'),
+      loginPassword: document.getElementById('login-password'),
+      registerUsername: document.getElementById('register-username'),
+      registerPassword: document.getElementById('register-password'),
+      registerConfirm: document.getElementById('register-confirm'),
+      loginButton: document.getElementById('login-button'),
+      registerButton: document.getElementById('register-button'),
+      authToggleText: document.getElementById('auth-toggle-text'),
+      authToggleButton: document.getElementById('auth-toggle-button'),
+
+      // Chat screen
+      messages: document.getElementById('messages'),
+      messageInput: document.getElementById('message-input'),
+      sendButton: document.getElementById('send-button'),
+      connectionStatus: document.getElementById('connection-status'),
+      connectionText: document.getElementById('connection-text'),
+      userName: document.getElementById('user-name'),
+      userAvatar: document.getElementById('user-avatar'),
+      gatewayStatus: document.getElementById('gateway-status'),
+
+      // Sidebar buttons
+      newChatButton: document.getElementById('new-chat-button'),
+      clearHistoryButton: document.getElementById('clear-history-button'),
+      logoutButton: document.getElementById('logout-button')
+    };
+
+    // =====================================================================
+    // Utility Functions
+    // =====================================================================
+
+    /**
+     * Generates a unique ID
+     * @returns {string} UUID
+     */
+    function generateId() {
+      if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+        return crypto.randomUUID();
+      }
+      return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+        const r = Math.random() * 16 | 0;
+        const v = c === 'x' ? r : (r & 0x3 | 0x8);
+        return v.toString(16);
+      });
+    }
+
+    /**
+     * Formats a timestamp for display
+     * @param {number} timestamp - Unix timestamp in ms
+     * @returns {string} Formatted time string
+     */
+    function formatTime(timestamp) {
+      const date = new Date(timestamp);
+      return date.toLocaleTimeString('en-US', {
+        hour12: false,
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    }
+
+    /**
+     * Escapes HTML to prevent XSS
+     * @param {string} text - Raw text
+     * @returns {string} Escaped HTML
+     */
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    /**
+     * Shows an error message
+     * @param {HTMLElement} errorElement - Error display element
+     * @param {string} message - Error message
+     */
+    function showError(errorElement, message) {
+      errorElement.textContent = message;
+      errorElement.classList.remove('hidden');
+      setTimeout(() => errorElement.classList.add('hidden'), 5000);
+    }
+
+    /**
+     * Updates the connection status indicator
+     * @param {string} status - Status type: 'connected', 'connecting', 'disconnected', 'error'
+     * @param {string} text - Status text
+     */
+    function updateConnectionStatus(status, text) {
+      state.connectionStatus = status;
+      elements.connectionStatus.className = 'status-indicator ' + status;
+      elements.connectionText.textContent = text;
+    }
+
+    // =====================================================================
+    // WebSocket Connection
+    // =====================================================================
+
+    /**
+     * Connects to the HomePlus WebSocket server
+     */
+    function connect() {
+      if (state.ws && state.ws.readyState === WebSocket.OPEN) {
+        console.log('Already connected');
+        return;
+      }
+
+      updateConnectionStatus('connecting', 'Connecting...');
+      console.log('Connecting to:', WS_URL);
+
+      try {
+        state.ws = new WebSocket(WS_URL);
+
+        state.ws.onopen = handleOpen;
+        state.ws.onmessage = handleMessage;
+        state.ws.onclose = handleClose;
+        state.ws.onerror = handleError;
+
+        // Connection timeout
+        setTimeout(() => {
+          if (state.ws.readyState === WebSocket.CONNECTING) {
+            state.ws.close();
+            updateConnectionStatus('error', 'Connection timeout');
+          }
+        }, 10000);
+
+      } catch (err) {
+        console.error('WebSocket connection error:', err);
+        updateConnectionStatus('error', 'Connection failed');
+        scheduleReconnect();
+      }
+    }
+
+    /**
+     * Handles WebSocket open event
+     */
+    function handleOpen() {
+      console.log('WebSocket connected');
+      state.reconnectAttempts = 0;
+      updateConnectionStatus('connected', 'Connected');
+      elements.sendButton.disabled = !state.authenticated;
+
+      // Start ping interval
+      startPingInterval();
+    }
+
+    /**
+     * Handles incoming WebSocket messages
+     * @param {MessageEvent} event - Message event
+     */
+    function handleMessage(event) {
+      try {
+        const message = JSON.parse(event.data);
+        console.log('Received:', message);
+
+        switch (message.type) {
+          case 'auth_success':
+            handleAuthSuccess(message);
+            break;
+
+          case 'auth_error':
+            handleAuthError(message);
+            break;
+
+          case 'connected':
+            handleConnected(message);
+            break;
+
+          case 'message':
+            handleChatMessage(message);
+            break;
+
+          case 'history':
+            handleHistory(message);
+            break;
+
+          case 'status':
+            handleStatus(message);
+            break;
+
+          case 'error':
+            handleServerError(message);
+            break;
+
+          case 'pong':
+            state.lastPong = Date.now();
+            break;
+
+          default:
+            console.log('Unknown message type:', message.type);
+        }
+
+      } catch (err) {
+        console.error('Error parsing message:', err);
+      }
+    }
+
+    /**
+     * Handles WebSocket close event
+     * @param {CloseEvent} event - Close event
+     */
+    function handleClose(event) {
+      console.log('WebSocket closed:', event.code, event.reason);
+      stopPingInterval();
+
+      if (state.authenticated) {
+        updateConnectionStatus('error', 'Connection lost');
+        scheduleReconnect();
+      } else {
+        updateConnectionStatus('disconnected', 'Disconnected');
+      }
+    }
+
+    /**
+     * Handles WebSocket errors
+     * @param {Event} event - Error event
+     */
+    function handleError(event) {
+      console.error('WebSocket error:', event);
+      updateConnectionStatus('error', 'Connection error');
+    }
+
+    /**
+     * Schedules a reconnection attempt
+     */
+    function scheduleReconnect() {
+      if (state.reconnectAttempts >= state.maxReconnectAttempts) {
+        console.log('Max reconnection attempts reached');
+        updateConnectionStatus('error', 'Connection failed');
+        return;
+      }
+
+      const delay = Math.min(
+        state.reconnectDelay * Math.pow(2, state.reconnectAttempts),
+        30000
+      );
+
+      state.reconnectAttempts++;
+      console.log(`Reconnecting in ${delay}ms (attempt ${state.reconnectAttempts})`);
+      updateConnectionStatus('connecting', `Reconnecting (${state.reconnectAttempts})...`);
+
+      setTimeout(connect, delay);
+    }
+
+    /**
+     * Sends a message to the server
+     * @param {Object} message - Message object
+     */
+    function sendMessage(message) {
+      if (state.ws && state.ws.readyState === WebSocket.OPEN) {
+        state.ws.send(JSON.stringify(message));
+      } else {
+        console.error('Cannot send - not connected');
+      }
+    }
+
+    /**
+     * Starts the ping interval for keepalive
+     */
+    function startPingInterval() {
+      stopPingInterval();
+      state.pingInterval = setInterval(() => {
+        if (state.ws && state.ws.readyState === WebSocket.OPEN) {
+          sendMessage({ type: 'ping' });
+          
+          // Check if we received a pong recently
+          if (state.lastPong && Date.now() - state.lastPong > 60000) {
+            console.warn('No pong received - reconnecting');
+            state.ws.close();
+          }
+        }
+      }, 30000);
+    }
+
+    /**
+     * Stops the ping interval
+     */
+    function stopPingInterval() {
+      if (state.pingInterval) {
+        clearInterval(state.pingInterval);
+        state.pingInterval = null;
+      }
+    }
+
+    // =====================================================================
+    // Message Handlers
+    // =====================================================================
+
+    /**
+     * Handles authentication success
+     * @param {Object} message - Auth success message
+     */
+    function handleAuthSuccess(message) {
+      state.authenticated = true;
+      state.username = message.username;
+      state.sessionKey = message.sessionKey;
+
+      // Update UI
+      elements.userName.textContent = message.username;
+      elements.userAvatar.textContent = message.username.charAt(0).toUpperCase();
+
+      // Switch to chat screen
+      elements.authScreen.classList.add('hidden');
+      elements.chatScreen.classList.remove('hidden');
+
+      elements.sendButton.disabled = false;
+
+      console.log('Authenticated as:', message.username);
+    }
+
+    /**
+     * Handles authentication error
+     * @param {Object} message - Auth error message
+     */
+    function handleAuthError(message) {
+      if (!elements.loginForm.classList.contains('hidden')) {
+        showError(elements.loginError, message.message || 'Login failed');
+        elements.loginButton.disabled = false;
+      } else {
+        showError(elements.registerError, message.message || 'Registration failed');
+        elements.registerButton.disabled = false;
+      }
+    }
+
+    /**
+     * Handles connected message (session attached to gateway)
+     * @param {Object} message - Connected message
+     */
+    function handleConnected(message) {
+      console.log('Session connected to gateway:', message.sessionKey);
+      state.sessionKey = message.sessionKey;
+      elements.gatewayStatus.textContent = 'Connected';
+    }
+
+    /**
+     * Handles incoming chat messages
+     * @param {Object} message - Chat message
+     */
+    function handleChatMessage(message) {
+      // Clear welcome message if exists
+      const welcome = elements.messages.querySelector('.welcome-message');
+      if (welcome) {
+        welcome.remove();
+      }
+
+      // Determine if this is user's message or bot's
+      const isUser = message.from === 'user';
+      const avatar = isUser ? state.username.charAt(0).toUpperCase() : '🤖';
+      const bubbleClass = isUser ? 'user' : 'bot';
+      const pendingClass = message.pending ? 'message-pending' : '';
+
+      const messageEl = document.createElement('div');
+      messageEl.className = `message ${bubbleClass} ${pendingClass}`.trim();
+      messageEl.setAttribute('data-id', message.id);
+
+      messageEl.innerHTML = `
+        <div class="message-avatar">${escapeHtml(avatar)}</div>
+        <div class="message-content">
+          <div class="message-bubble">${escapeHtml(message.content)}</div>
+          <div class="message-time">${formatTime(message.timestamp)}</div>
+        </div>
+      `;
+
+      elements.messages.appendChild(messageEl);
+      elements.messages.scrollTop = elements.messages.scrollHeight;
+    }
+
+    /**
+     * Handles history response
+     * @param {Object} message - History message
+     */
+    function handleHistory(message) {
+      if (!message.messages || message.messages.length === 0) {
+        return;
+      }
+
+      // Clear existing messages
+      elements.messages.innerHTML = '';
+
+      // Add each historical message
+      message.messages.forEach((msg) => {
+        const isUser = msg.role === 'user' || msg.from === 'user';
+        const avatar = isUser ? 
+          (state.username ? state.username.charAt(0).toUpperCase() : 'U') : 
+          '🤖';
+        const bubbleClass = isUser ? 'user' : 'bot';
+
+        const messageEl = document.createElement('div');
+        messageEl.className = `message ${bubbleClass}`;
+        messageEl.setAttribute('data-id', msg.id || msg.messageId);
+
+        messageEl.innerHTML = `
+          <div class="message-avatar">${escapeHtml(avatar)}</div>
+          <div class="message-content">
+            <div class="message-bubble">${escapeHtml(msg.content || msg.text || '')}</div>
+            <div class="message-time">${formatTime(msg.timestamp || msg.createdAt)}</div>
+          </div>
+        `;
+
+        elements.messages.appendChild(messageEl);
+      });
+
+      elements.messages.scrollTop = elements.messages.scrollHeight;
+      console.log(`Loaded ${message.messages.length} historical messages`);
+    }
+
+    /**
+     * Handles status updates
+     * @param {Object} message - Status message
+     */
+    function handleStatus(message) {
+      if (message.status === 'connected') {
+        elements.gatewayStatus.textContent = 'Connected';
+      } else if (message.status === 'disconnected') {
+        elements.gatewayStatus.textContent = 'Disconnected';
+      }
+    }
+
+    /**
+     * Handles server errors
+     * @param {Object} message - Error message
+     */
+    function handleServerError(message) {
+      console.error('Server error:', message.message);
+      // Could show a toast notification here
+    }
+
+    // =====================================================================
+    // UI Event Handlers
+    // =====================================================================
+
+    /**
+     * Handles login form submission
+     * @param {Event} event - Submit event
+     */
+    function handleLoginSubmit(event) {
+      event.preventDefault();
+
+      const username = elements.loginUsername.value.trim();
+      const password = elements.loginPassword.value;
+
+      if (!username || !password) {
+        showError(elements.loginError, 'Please fill in all fields');
+        return;
+      }
+
+      elements.loginButton.disabled = true;
+
+      sendMessage({
+        type: 'login',
+        username,
+        password
+      });
+    }
+
+    /**
+     * Handles register form submission
+     * @param {Event} event - Submit event
+     */
+    function handleRegisterSubmit(event) {
+      event.preventDefault();
+
+      const username = elements.registerUsername.value.trim();
+      const password = elements.registerPassword.value;
+      const confirm = elements.registerConfirm.value;
+
+      if (!username || !password || !confirm) {
+        showError(elements.registerError, 'Please fill in all fields');
+        return;
+      }
+
+      if (password !== confirm) {
+        showError(elements.registerError, 'Passwords do not match');
+        return;
+      }
+
+      if (password.length < 6) {
+        showError(elements.registerError, 'Password must be at least 6 characters');
+        return;
+      }
+
+      if (!/^[a-zA-Z0-9_-]+$/.test(username)) {
+        showError(elements.registerError, 'Username can only contain letters, numbers, underscores, and hyphens');
+        return;
+      }
+
+      elements.registerButton.disabled = true;
+
+      sendMessage({
+        type: 'register',
+        username,
+        password
+      });
+    }
+
+    /**
+     * Toggles between login and register forms
+     */
+    function toggleAuthForm() {
+      const isLogin = elements.loginForm.classList.contains('hidden');
+      
+      if (isLogin) {
+        elements.loginForm.classList.remove('hidden');
+        elements.registerForm.classList.add('hidden');
+        elements.authToggleText.textContent = "Don't have an account?";
+        elements.authToggleButton.textContent = 'Sign Up';
+      } else {
+        elements.loginForm.classList.add('hidden');
+        elements.registerForm.classList.remove('hidden');
+        elements.authToggleText.textContent = 'Already have an account?';
+        elements.authToggleButton.textContent = 'Sign In';
+      }
+
+      // Clear errors
+      elements.loginError.classList.add('hidden');
+      elements.registerError.classList.add('hidden');
+    }
+
+    /**
+     * Handles send button click and message input
+     */
+    function handleSendMessage() {
+      const content = elements.messageInput.value.trim();
+      
+      if (!content || !state.authenticated) {
+        return;
+      }
+
+      sendMessage({
+        type: 'message',
+        content,
+        id: generateId()
+      });
+
+      elements.messageInput.value = '';
+      elements.messageInput.focus();
+    }
+
+    /**
+     * Handles message input keypress (Enter to send)
+     * @param {KeyboardEvent} event - Keyboard event
+     */
+    function handleMessageKeypress(event) {
+      if (event.key === 'Enter' && !event.shiftKey) {
+        event.preventDefault();
+        handleSendMessage();
+      }
+    }
+
+    /**
+     * Handles new chat button click
+     */
+    function handleNewChat() {
+      // Clear messages and show welcome
+      elements.messages.innerHTML = `
+        <div class="welcome-message">
+          <h2>New Chat ✨</h2>
+          <p>Start a fresh conversation.</p>
+        </div>
+      `;
+
+      // Request history (which will be empty for new session)
+      sendMessage({
+        type: 'history',
+        limit: 0
+      });
+    }
+
+    /**
+     * Handles clear history button click
+     */
+    function handleClearHistory() {
+      if (confirm('Are you sure you want to clear your chat history?')) {
+        // Clear local display
+        elements.messages.innerHTML = `
+          <div class="welcome-message">
+            <h2>History Cleared 🗑️</h2>
+            <p>Start a new conversation.</p>
+          </div>
+        `;
+
+        // Note: Actual history clearing would need server support
+        console.log('History cleared (local)');
+      }
+    }
+
+    /**
+     * Handles logout button click
+     */
+    function handleLogout() {
+      if (state.ws && state.ws.readyState === WebSocket.OPEN) {
+        sendMessage({ type: 'logout' });
+        state.ws.close();
+      }
+
+      // Reset state
+      state.authenticated = false;
+      state.username = null;
+      state.sessionKey = null;
+
+      // Reset UI
+      elements.chatScreen.classList.add('hidden');
+      elements.authScreen.classList.remove('hidden');
+      elements.loginUsername.value = '';
+      elements.loginPassword.value = '';
+      elements.registerUsername.value = '';
+      elements.registerPassword.value = '';
+      elements.registerConfirm.value = '';
+      elements.sendButton.disabled = true;
+
+      console.log('Logged out');
+    }
+
+    // =====================================================================
+    // Initialization
+    // =====================================================================
+
+    /**
+     * Sets up all event listeners
+     */
+    function setupEventListeners() {
+      // Auth forms
+      elements.loginForm.addEventListener('submit', handleLoginSubmit);
+      elements.registerForm.addEventListener('submit', handleRegisterSubmit);
+      elements.authToggleButton.addEventListener('click', toggleAuthForm);
+
+      // Chat input
+      elements.sendButton.addEventListener('click', handleSendMessage);
+      elements.messageInput.addEventListener('keypress', handleMessageKeypress);
+
+      // Sidebar buttons
+      elements.newChatButton.addEventListener('click', handleNewChat);
+      elements.clearHistoryButton.addEventListener('click', handleClearHistory);
+      elements.logoutButton.addEventListener('click', handleLogout);
+
+      // Enable/disable send button based on input
+      elements.messageInput.addEventListener('input', () => {
+        elements.sendButton.disabled = !elements.messageInput.value.trim() || !state.authenticated;
+      });
+    }
+
+    /**
+     * Initializes the application
+     */
+    function init() {
+      console.log('HomePlus Client initializing...');
+      
+      setupEventListeners();
+      connect();
+      
+      console.log('HomePlus Client ready');
+    }
+
+    // Start the application when DOM is ready
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', init);
+    } else {
+      init();
+    }
+  </script>
+</body>
+</html>
