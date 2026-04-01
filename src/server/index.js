@@ -16,6 +16,7 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const url = require('url');
+const crypto = require('crypto');
 const WebSocket = require('ws');
 const { v4: uuidv4 } = require('uuid');
 
@@ -48,6 +49,9 @@ const STATIC_DIR = path.join(__dirname, '..', 'client');
 const MAIN_SESSION = 'agent:main:main';
 // Dedicated HomePlus session - created after connect
 let HOMEPULS_SESSION_KEY = null;
+
+// /ai-response endpoint secret for HMAC verification
+const AI_RESPONSE_SECRET = process.env.AI_RESPONSE_SECRET;
 
 // =============================================================================
 // Server State
@@ -101,7 +105,40 @@ function handleHttpRequest(req, res) {
   
   // Handle /ai-response endpoint - receives AI responses from the agent
   // Used to bridge AI responses to HomePlus WebSocket clients
+  // Protected by HMAC signature verification
   if (pathname === '/ai-response' && req.method === 'POST') {
+    const signature = req.headers['x-signature'] || req.headers['x-hmac-signature'];
+    const timestamp = req.headers['x-timestamp'];
+
+    // Verify HMAC signature if secret is configured
+    if (AI_RESPONSE_SECRET) {
+      if (!signature || !timestamp) {
+        log('warn', 'http', '/ai-response rejected: missing signature header');
+        res.writeHead(401, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Unauthorized' }));
+        return;
+      }
+      // Reject requests older than 5 minutes (replay protection)
+      const age = Date.now() - parseInt(timestamp, 10);
+      if (isNaN(age) || age > 300000) {
+        log('warn', 'http', '/ai-response rejected: timestamp expired');
+        res.writeHead(401, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Request expired' }));
+        return;
+      }
+      const hmac = crypto.createHmac('sha256', AI_RESPONSE_SECRET);
+      hmac.update(timestamp + '.' + body);
+      const expected = hmac.digest('hex');
+      if (!crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected))) {
+        log('warn', 'http', '/ai-response rejected: invalid signature');
+        res.writeHead(401, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Invalid signature' }));
+        return;
+      }
+    } else if (NODE_ENV === 'production') {
+      log('warn', 'http', '/ai-response: AI_RESPONSE_SECRET not set in production!');
+    }
+
     let body = '';
     req.on('data', chunk => { body += chunk; });
     req.on('end', () => {
@@ -284,6 +321,7 @@ async function handleClientMessage(ws, message, clientId, clientIp, authState) {
   sessionManager.touchSession(clientId);
 
   // Route message based on type
+  console.log(`[ROUTER] type="${message.type}" model="${message.model}" content="${String(message.content||'').substring(0,30)}"`);
   switch (message.type) {
     case MessageTypes.LOGIN:
       await handleLogin(ws, message, clientId, clientIp, authState);
@@ -443,7 +481,8 @@ async function handleChatMessage(ws, message, clientId, authState) {
 
   // Send message to AI via direct MiniMax API (with weather enrichment)
   try {
-    const aiResponse = await chatService.chat(message.content, session.sessionKey);
+    log('info', 'server', `Model from client: "${message.model}"`);
+    const aiResponse = await chatService.chat(message.content, session.sessionKey, message.model);
     log('info', 'server', `AI response: ${aiResponse.substring(0, 80)}...`);
     
     // Send AI response back to user

@@ -31,8 +31,8 @@ const client = {
   gatewayToken: process.env.OPENCLAW_GATEWAY_TOKEN || 'homeplus-local-token',
   pendingRequests: new Map(),
   reconnectConfig: {
-    enabled: false,
-    maxRetries: 10,
+    enabled: true,
+    maxRetries: Infinity,
     baseDelayMs: 1000,
     maxDelayMs: 30000,
     currentRetry: 0,

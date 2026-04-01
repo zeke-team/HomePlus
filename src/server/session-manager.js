@@ -437,6 +437,10 @@ function log(level, message) {
   console.log(`[${timestamp}] [${logLevel}] [session] ${message}`);
 }
 
+// In-memory sessions are NOT persisted - they exist only for the lifetime of the server process
+// TODO: consider persisting active sessions if needed for crash recovery
+// For now, session data is lost on restart (acceptable for WebSocket sessions)
+
 // Start periodic cleanup (every 5 minutes)
 setInterval(() => {
   cleanupExpiredSessions();

@@ -876,14 +876,24 @@
       </div>
 
       <div class="sidebar-section">
-        <h4>Connection</h4>
-        <ul class="sidebar-menu">
-          <li>
-            <button id="connection-info-button">
-              <span>📡</span> <span id="gateway-status">Checking...</span>
-            </button>
-          </li>
-        </ul>
+        <h4>AI Model</h4>
+        <select id="model-select" style="
+          width: 100%;
+          background: var(--color-bg-input);
+          border: 1px solid var(--color-border);
+          border-radius: var(--radius-md);
+          padding: 8px 12px;
+          font-family: inherit;
+          font-size: var(--font-size-sm);
+          color: var(--color-text-primary);
+          cursor: pointer;
+          outline: none;
+        ">
+          <option value="MiniMax-M2.7-highspeed">⚡ MiniMax M2.7 Highspeed</option>
+          <option value="MiniMax-M2.7">🧠 MiniMax M2.7</option>
+          <option value="deepseek-chat">💬 DeepSeek V3</option>
+          <option value="deepseek-reasoner">🔬 DeepSeek R1</option>
+        </select>
       </div>
 
       <div class="sidebar-section" style="margin-top: auto;">
@@ -924,7 +934,9 @@
       reconnectDelay: 1000,        // Base reconnection delay (ms)
       pingInterval: null,          // Ping interval timer
       lastPong: null,              // Last pong received timestamp
-      connectionStatus: 'disconnected'  // Current connection status
+      connectionStatus: 'disconnected',  // Current connection status
+      thinkingMessageId: null,      // ID of the user's pending message waiting for AI response
+      currentModel: sessionStorage.getItem('homeplus_model') || 'MiniMax-M2.7-highspeed'  // Selected AI model
     };
 
     // =====================================================================
@@ -958,6 +970,7 @@
       userName: document.getElementById('user-name'),
       userAvatar: document.getElementById('user-avatar'),
       gatewayStatus: document.getElementById('gateway-status'),
+      modelSelect: document.getElementById('model-select'),
 
       // Sidebar buttons
       newChatButton: document.getElementById('new-chat-button'),
@@ -1021,6 +1034,36 @@
     }
 
     /**
+     * Shows the thinking indicator (AI is processing)
+     */
+    function showTypingIndicator() {
+      if (document.getElementById('thinking-indicator')) return; // Already showing
+      const el = document.createElement('div');
+      el.id = 'thinking-indicator';
+      el.className = 'message bot';
+      el.innerHTML = `
+        <div class="message-avatar">🤖</div>
+        <div class="message-content">
+          <div class="message-bubble">
+            <div class="typing-indicator">
+              <span></span><span></span><span></span>
+            </div>
+          </div>
+        </div>
+      `;
+      elements.messages.appendChild(el);
+      elements.messages.scrollTop = elements.messages.scrollHeight;
+    }
+
+    /**
+     * Hides the thinking indicator
+     */
+    function hideTypingIndicator() {
+      const el = document.getElementById('thinking-indicator');
+      if (el) el.remove();
+    }
+
+    /**
      * Updates the connection status indicator
      * @param {string} status - Status type: 'connected', 'connecting', 'disconnected', 'error'
      * @param {string} text - Status text
@@ -1078,6 +1121,26 @@
       state.reconnectAttempts = 0;
       updateConnectionStatus('connected', 'Connected');
       elements.sendButton.disabled = !state.authenticated;
+
+      // Auto re-authenticate if we have stored credentials (session expired on server)
+      const savedUsername = sessionStorage.getItem('homeplus_username');
+      const savedPassword = sessionStorage.getItem('homeplus_password');
+      if (savedUsername && savedPassword) {
+        console.log('Auto re-authenticating as:', savedUsername);
+        sendMessage({
+          type: 'login',
+          username: savedUsername,
+          password: savedPassword
+        });
+      }
+
+      // Restore model preference from sessionStorage
+      const savedModel = sessionStorage.getItem('homeplus_model');
+      if (savedModel) {
+        state.currentModel = savedModel;
+        elements.modelSelect.value = savedModel;
+        console.log('Restored model preference:', savedModel);
+      }
 
       // Start ping interval
       startPingInterval();
@@ -1234,6 +1297,23 @@
       state.username = message.username;
       state.sessionKey = message.sessionKey;
 
+      // Persist credentials for reconnect
+      const savedUsername = sessionStorage.getItem('homeplus_username');
+      const savedPassword = sessionStorage.getItem('homeplus_password');
+      if (savedUsername && savedPassword) {
+        // Restore session
+        sessionStorage.setItem('homeplus_username', savedUsername);
+        sessionStorage.setItem('homeplus_password', savedPassword);
+      }
+
+      // Restore model preference after re-authentication
+      const savedModel = sessionStorage.getItem('homeplus_model');
+      if (savedModel) {
+        state.currentModel = savedModel;
+        elements.modelSelect.value = savedModel;
+        console.log('Restored model preference:', savedModel);
+      }
+
       // Update UI
       elements.userName.textContent = message.username;
       elements.userAvatar.textContent = message.username.charAt(0).toUpperCase();
@@ -1280,6 +1360,20 @@
       const welcome = elements.messages.querySelector('.welcome-message');
       if (welcome) {
         welcome.remove();
+      }
+
+      // If user message is pending, show thinking indicator
+      if (message.from === 'user' && message.pending) {
+        state.thinkingMessageId = message.id;
+        showTypingIndicator();
+      }
+
+      // If AI responds (bot message or pending=false), hide thinking indicator
+      if (message.from !== 'user' || !message.pending) {
+        if (state.thinkingMessageId) {
+          hideTypingIndicator();
+          state.thinkingMessageId = null;
+        }
       }
 
       // Determine if this is user's message or bot's
@@ -1383,6 +1477,10 @@
         return;
       }
 
+      // Store credentials for potential reconnect
+      sessionStorage.setItem('homeplus_username', username);
+      sessionStorage.setItem('homeplus_password', password);
+
       elements.loginButton.disabled = true;
 
       sendMessage({
@@ -1465,11 +1563,15 @@
         return;
       }
 
-      sendMessage({
+      const msg = {
         type: 'message',
         content,
-        id: generateId()
-      });
+        id: generateId(),
+        model: state.currentModel
+      };
+      console.log('[HomePlus] ACTUAL SEND. state.currentModel=', state.currentModel, 'sessionStorage=', sessionStorage.getItem('homeplus_model'));
+      console.log('[HomePlus] Sending:', JSON.stringify(msg));
+      sendMessage(msg);
 
       elements.messageInput.value = '';
       elements.messageInput.focus();
@@ -1490,6 +1592,9 @@
      * Handles new chat button click
      */
     function handleNewChat() {
+      state.thinkingMessageId = null;
+      hideTypingIndicator();
+
       // Clear messages and show welcome
       elements.messages.innerHTML = `
         <div class="welcome-message">
@@ -1532,10 +1637,16 @@
         state.ws.close();
       }
 
+      // Clear stored credentials
+      sessionStorage.removeItem('homeplus_username');
+      sessionStorage.removeItem('homeplus_password');
+
       // Reset state
       state.authenticated = false;
       state.username = null;
       state.sessionKey = null;
+      state.thinkingMessageId = null;
+      hideTypingIndicator();
 
       // Reset UI
       elements.chatScreen.classList.add('hidden');
@@ -1572,6 +1683,13 @@
       elements.clearHistoryButton.addEventListener('click', handleClearHistory);
       elements.logoutButton.addEventListener('click', handleLogout);
 
+      // Model selector
+      elements.modelSelect.addEventListener('change', (e) => {
+        state.currentModel = e.target.value;
+        sessionStorage.setItem('homeplus_model', state.currentModel);
+        console.log('Model switched to:', state.currentModel);
+      });
+
       // Enable/disable send button based on input
       elements.messageInput.addEventListener('input', () => {
         elements.sendButton.disabled = !elements.messageInput.value.trim() || !state.authenticated;
@@ -1583,10 +1701,10 @@
      */
     function init() {
       console.log('HomePlus Client initializing...');
-      
+
       setupEventListeners();
       connect();
-      
+
       console.log('HomePlus Client ready');
     }
 

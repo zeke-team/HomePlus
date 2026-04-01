@@ -1,16 +1,19 @@
 # HomePlus Project Specification
 
-**Version:** 1.0.0  
-**Last Updated:** 2026-03-31
+**Version:** 1.2.0  
+**Last Updated:** 2026-04-01
 
 ---
 
 ## 1. Project Overview
 
 **Project Name:** HomePlus  
+
 **Project Type:** Self-hosted multi-user AI chat application  
-**Core Functionality:** A web-based chat platform that enables multiple users to simultaneously interact with an AI assistant powered by MiniMax API, featuring real-time WebSocket messaging and built-in weather intelligence.  
-**Target Users:** Teams and individuals who want a self-hosted AI chat solution with multi-user support.
+
+**Core Functionality:** A web-based chat platform that enables multiple users to simultaneously interact with an AI assistant, featuring real-time WebSocket messaging, persistent conversation history, and **multi-model support** (MiniMax + DeepSeek).
+
+**Target Users:** Teams and individuals who want a self-hosted AI chat solution with multi-user support and model flexibility.
 
 ---
 
@@ -22,8 +25,7 @@
 | HTTP Server | Node.js built-in `http` module |
 | WebSocket | `ws` library |
 | Authentication | Custom session-based with bcrypt password hashing |
-| AI Backend | MiniMax API (Anthropic-compatible) |
-| Weather Data | wttr.in (no API key required) |
+| AI Backend | MiniMax API (Anthropic-compatible) + DeepSeek API (OpenAI-compatible) |
 
 ---
 
@@ -35,16 +37,16 @@
 HTTP Server (port 18790)
 ├── Static File Serving (src/client/)
 └── REST API
-    └── POST /ai-response (receives AI responses from bridge)
+    └── POST /ai-response (receives AI responses from external bridge, HMAC-protected)
 
 WebSocket Server (port 18791)
 ├── Authentication Handshake
 ├── Message Routing
-└── Session Management
+├── Session Management
+└── Auto Reconnection (gateway)
 
 Chat Service Layer
-├── ChatService — Direct MiniMax API calls
-└── WeatherService — wttr.in integration
+└── ChatService — Direct AI API calls (MiniMax + DeepSeek) with persistent conversation history
 ```
 
 ### 3.2 Client Components
@@ -52,15 +54,16 @@ Chat Service Layer
 ```
 Web Browser
 └── Single-page application
-    ├── Login Screen
+    ├── Login Screen (with credential persistence for auto-reconnect)
     ├── Chat Interface
-    └── Message Display
+    ├── Model Selector (sidebar)
+    └── Message Display (with typing indicator)
 ```
 
 ### 3.3 Data Flow
 
 ```
-User → WebSocket → HomePlus Server → MiniMax API
+User → WebSocket → HomePlus Server → AI API (MiniMax or DeepSeek)
                                            ↓
 User ← WebSocket ← HomePlus Server ← AI Response
 ```
@@ -71,34 +74,49 @@ User ← WebSocket ← HomePlus Server ← AI Response
 
 ### 4.1 User Authentication
 
-- **Registration:** Username + password (bcrypt hashed)
+- **Registration:** Username + password (bcrypt hashed, cost factor 10)
 - **Login:** Username + password → session token
 - **Sessions:** In-memory session tokens with configurable expiry
-- **Default Users:** `testuser` (for testing only)
+- **Default Users:** `testuser` (password: `test123`)
+- **Credential Persistence:** Login credentials stored in sessionStorage for auto-reconnect after session expiry
 
 ### 4.2 Chat Features
 
 - **Real-time messaging** via WebSocket
-- **Message history** maintained in server memory (per session)
-- **AI responses** via MiniMax API (MiniMax-M2.7-highspeed model)
-- **Message format:** JSON with type, id, content, from, timestamp, parentId
+- **Message history** persisted to `data/conversation-history.json` (survives server restart)
+- **AI responses** via configurable AI backend (MiniMax or DeepSeek)
+- **Model selection:** Users can switch between 4 models in real-time:
+  - MiniMax-M2.7-highspeed (default, fast)
+  - MiniMax-M2.7 (standard)
+  - DeepSeek V3 (code-strong, cost-efficient)
+  - DeepSeek R1 (reasoning, complex tasks)
+- **Thinking indicator:** Animated typing indicator while AI is processing
+- **Message format:** JSON with type, id, content, from, timestamp, parentId, model
 
-### 4.3 Weather Intelligence
+### 4.3 Conversation History
 
-- **Automatic detection:** Messages containing weather keywords trigger weather enrichment
-- **Supported queries:** "天气", "weather", "温度", "temperature", etc.
-- **Data source:** wttr.in (no API key required)
-- **City mapping:** Supports major Chinese and English city names
+- **Persistence:** History stored in `data/conversation-history.json`
+- **Auto-save:** Changes saved to disk every 30 seconds (debounced)
+- **History per session:** Each session maintains its own conversation context
+- **Context window:** Last 20 messages + system prompt preserved
 
-### 4.4 API Endpoints
+### 4.4 Multi-Model Architecture
+
+- **Provider routing:** Model name → API endpoint/credentials resolved dynamically
+- **MiniMax:** Anthropic-compatible API, uses `MiniMax-M2.7` / `MiniMax-M2.7-highspeed`
+- **DeepSeek:** OpenAI-compatible API, uses `deepseek-chat` / `deepseek-reasoner`
+- **Per-message model:** Each chat message can specify a different model
+- **Session persistence:** Model preference stored in browser sessionStorage, restored on reconnect
+
+### 4.5 API Endpoints
 
 | Method | Path | Description |
 |--------|------|-------------|
-| POST | `/ai-response` | Receives AI responses from external bridge |
+| POST | `/ai-response` | Receives AI responses from external bridge (HMAC-SHA256 protected) |
 | GET | `/` | Serves web UI |
 | GET | `/*` | Serves static files |
 
-### 4.5 WebSocket Protocol
+### 4.6 WebSocket Protocol
 
 **Connection:** `ws://host:18791`
 
@@ -108,94 +126,49 @@ User ← WebSocket ← HomePlus Server ← AI Response
 |------|--------|-------------|
 | `register` | username, password | Create new account |
 | `login` | username, password | Login |
-| `message` | content, id | Send chat message |
+| `message` | content, id, model (optional) | Send chat message |
 | `history` | limit (optional) | Request message history |
+| `ping` | — | Keepalive ping |
+| `logout` | — | End session |
 
 **Message Types (Server → Client):**
 
 | Type | Fields | Description |
 |------|--------|-------------|
-| `auth_success` | username, sessionKey | Login/register success |
-| `auth_error` | message | Authentication failed |
-| `message` | id, content, from, timestamp | Chat message received |
-| `error` | message | Error occurred |
+| `auth_success` | username, sessionKey | Login successful |
+| `auth_error` | message | Login failed |
+| `connected` | sessionKey | Session attached to gateway |
+| `message` | id, content, from, timestamp, parentId, pending | Chat message |
 | `status` | status, message | Connection status update |
+| `pong` | timestamp | Ping response |
+| `error` | id, message | Error message |
 
 ---
 
-## 5. Configuration
+## 5. Security Considerations
 
-All configuration via environment variables (`.env`):
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `PORT` | 18790 | HTTP server port |
-| `WS_PORT` | 18791 | WebSocket server port |
-| `MINIMAX_API_KEY` | — | MiniMax API key (required) |
-| `MINIMAX_BASE_URL` | — | MiniMax API base URL |
-| `OPENCLAW_GATEWAY_URL` | ws://127.0.0.1:18789 | OpenClaw Gateway URL |
-| `OPENCLAW_GATEWAY_TOKEN` | — | OpenClaw Gateway token |
-| `SESSION_SECRET` | random | Session signing secret |
-| `NODE_ENV` | development | Environment mode |
+- `/ai-response` endpoint protected by HMAC-SHA256 signature verification
+- Replay protection: requests older than 5 minutes are rejected
+- API keys stored in environment variables, never in code
+- Passwords hashed with bcrypt (cost factor 10)
+- WebSocket session tokens (in-memory, not persistent across server restarts)
+- Credentials for auto-reconnect stored in sessionStorage (not localStorage)
 
 ---
 
-## 6. Security Considerations
+## 6. Known Limitations
 
-- Passwords are hashed with bcrypt (cost factor 10)
-- Session tokens are cryptographically random UUIDs
-- Input validation on all user-provided data
-- No SQL database (avoids injection risks)
-- API keys stored in environment variables, not in code
-- `.env` file excluded from version control
-
----
-
-## 7. File Structure
-
-```
-HomePlus/
-├── src/
-│   ├── client/           # Frontend web UI
-│   │   └── index.html
-│   ├── server/           # Backend server code
-│   │   ├── index.js      # Main entry point
-│   │   ├── chat-service.js
-│   │   ├── openclaw-client.js
-│   │   ├── session-manager.js
-│   │   └── user-manager.js
-│   └── shared/
-│       └── protocol.js   # Shared constants
-├── docs/                 # Documentation
-│   ├── ARCHITECTURE.md
-│   ├── API.md
-│   ├── DEPLOYMENT.md
-│   └── CHANGELOG.md
-├── .env.example
-├── .gitignore
-├── package.json
-├── SPEC.md
-├── README.md
-└── LICENSE
-```
-
----
-
-## 8. Known Limitations
-
-- **Message history** is in-memory only and resets on server restart
-- **No persistent storage** for user data beyond password hashes
-- **Single AI backend** — only MiniMax API supported currently
+- **Single AI backend per message** — cannot fan-out to multiple models simultaneously
+- **WebSocket session expiry** — connections may expire; client auto-reconnects and re-authenticates
 - **Session attachment** requires OpenClaw gateway with `operator.admin` scope (not available in current setup)
-- **Weather data** from wttr.in may be unavailable in some regions
 
 ---
 
-## 9. Future Considerations
+## 7. Future Considerations
 
-- Persistent message history (SQLite/PostgreSQL)
-- Additional AI backend support (OpenAI, Anthropic, etc.)
+- Persistent session tokens (survive server restart)
 - User avatars and profiles
 - Message reactions and threading
 - Channel/room support for multiple chat rooms
 - Admin panel for user management
+- Additional AI backend support (OpenAI, Anthropic, etc.)
